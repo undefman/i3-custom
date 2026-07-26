@@ -431,6 +431,35 @@ static void workspace_defer_update_urgent_hint_cb(EV_P_ ev_timer *w, int revents
     }
 }
 
+static bool workspace_is_empty_or_only_placeholders_recursive(Con *con) {
+    if (con->type == CT_CON) {
+        if (con->window != NULL) {
+            return false;
+        }
+        if (TAILQ_EMPTY(&(con->nodes_head))) {
+            /* Leaf container */
+            return con->is_placeholder;
+        }
+    }
+    Con *child;
+    TAILQ_FOREACH (child, &(con->nodes_head), nodes) {
+        if (!workspace_is_empty_or_only_placeholders_recursive(child)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool workspace_is_empty_or_only_placeholders(Con *ws) {
+    if (!TAILQ_EMPTY(&(ws->floating_head))) {
+        return false;
+    }
+    if (TAILQ_EMPTY(&(ws->nodes_head))) {
+        return true;
+    }
+    return workspace_is_empty_or_only_placeholders_recursive(ws);
+}
+
 /*
  * Switches to the given workspace
  *
@@ -527,7 +556,7 @@ void workspace_show(Con *workspace) {
      * client, which will clear the urgency flag too early. Also, there is no
      * way for con_focus() to know about when to clear urgency immediately and
      * when to defer it. */
-    if (old && TAILQ_EMPTY(&(old->nodes_head)) && TAILQ_EMPTY(&(old->floating_head))) {
+    if (old && workspace_is_empty_or_only_placeholders(old)) {
         /* check if this workspace is currently visible */
         if (!workspace_is_visible(old)) {
             LOG("Closing old workspace (%p / %s), it is empty\n", old, old->name);

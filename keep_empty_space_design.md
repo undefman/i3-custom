@@ -14,6 +14,7 @@ Normally, when a window is closed in i3, the tiling layout collapses and the rem
    - It will automatically reuse the focused placeholder container.
    - If no placeholder is focused, it will reuse the first available placeholder on the target workspace.
 5. **Deleting slots manually**: Focusing a placeholder and running the `kill` command (e.g., `$mod+Shift+q`) deletes the empty slot normally, allowing surrounding windows to expand and reclaim the space.
+6. **Empty Workspace Cleanup**: Workspaces that contain only placeholder containers (i.e. all windows have been closed) are automatically cleaned up and closed when switching away from them (just like normal empty workspaces).
 
 ---
 
@@ -69,6 +70,11 @@ The implementation spans the following files:
 ### 6. Dockarea Sorting Robustness
 * **File**: `src/con.c`
   - Added a defensive null check in `_con_attach` to skip containers with `window == NULL` (such as placeholders) when sorting dock clients, preventing null pointer dereferences.
+
+### 7. Empty Workspace Cleanup
+* **File**: `src/workspace.c`
+  - Implemented `workspace_is_empty_or_only_placeholders` helper to recursively scan the workspace's tiling tree. If all leaf containers are placeholders and there are no active windows or floating windows, the workspace is treated as empty.
+  - Updated the workspace switching hook in `workspace_show` to close the switched-away workspace if it only contains placeholders.
 
 ---
 
