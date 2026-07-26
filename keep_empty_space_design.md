@@ -15,6 +15,7 @@ Normally, when a window is closed in i3, the tiling layout collapses and the rem
    - If no placeholder is focused, it will reuse the first available placeholder on the target workspace.
 5. **Deleting slots manually**: Focusing a placeholder and running the `kill` command (e.g., `$mod+Shift+q`) deletes the empty slot normally, allowing surrounding windows to expand and reclaim the space.
 6. **Empty Workspace Cleanup**: Workspaces that contain only placeholder containers (i.e. all windows have been closed) are automatically cleaned up and closed when switching away from them (just like normal empty workspaces).
+7. **Auto-Cleanup on Squeeze**: If a placeholder is resized (via keyboard or mouse) below a width or height threshold of 40 pixels, it is automatically destroyed, allowing surrounding windows to expand and reclaim the space.
 
 ---
 
@@ -75,6 +76,11 @@ The implementation spans the following files:
 * **File**: `src/workspace.c`
   - Implemented `workspace_is_empty_or_only_placeholders` helper to recursively scan the workspace's tiling tree. If all leaf containers are placeholders and there are no active windows or floating windows, the workspace is treated as empty.
   - Updated the workspace switching hook in `workspace_show` to close the switched-away workspace if it only contains placeholders.
+
+### 8. Auto-Cleanup on Squeeze
+* **File**: `src/tree.c`
+  - Modified `tree_render` to scan the global container list `all_cons` for any active placeholder containers whose parent is a split container (`CT_CON`) or a workspace (`CT_WORKSPACE`).
+  - If a placeholder's width (for horizontal split) or height (for vertical split) is reduced below 40 pixels, it calls `tree_close_internal` to destroy it, letting adjacent tiling windows expand to fill its space. Used a recursion guard to prevent nested rendering loops.
 
 ---
 

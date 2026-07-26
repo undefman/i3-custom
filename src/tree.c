@@ -533,6 +533,50 @@ void tree_render(void) {
     }
 
     DLOG("-- BEGIN RENDERING --\n");
+    
+    static bool cleaning_up_placeholders = false;
+    if (!cleaning_up_placeholders) {
+        cleaning_up_placeholders = true;
+        
+        render_con(croot);
+        
+        bool changed = false;
+        Con *con, *next;
+        for (con = TAILQ_FIRST(&all_cons); con != NULL; con = next) {
+            next = TAILQ_NEXT(con, all_cons);
+            if (con->is_placeholder && con->parent != NULL && (con->parent->type == CT_CON || con->parent->type == CT_WORKSPACE)) {
+                if (con->parent->rect.width > 0 && con->parent->rect.height > 0) {
+                    bool too_small = false;
+                    orientation_t orient = con_orientation(con->parent);
+                    if (orient == HORIZ) {
+                        if (con->rect.width > 0 && con->rect.width < 40) {
+                            too_small = true;
+                        }
+                    } else if (orient == VERT) {
+                        if (con->rect.height > 0 && con->rect.height < 40) {
+                            too_small = true;
+                        }
+                    }
+                    
+                    if (too_small) {
+                        DLOG("Placeholder %p is too small (width=%d, height=%d), closing it\n",
+                             con, con->rect.width, con->rect.height);
+                        tree_close_internal(con, DONT_KILL_WINDOW, false);
+                        changed = true;
+                    }
+                }
+            }
+        }
+        
+        cleaning_up_placeholders = false;
+        
+        if (changed) {
+            render_con(croot);
+        }
+    } else {
+        render_con(croot);
+    }
+
     /* Reset map state for all nodes in tree */
     /* TODO: a nicer method to walk all nodes would be good, maybe? */
     mark_unmapped(croot);
