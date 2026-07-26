@@ -31,6 +31,8 @@ state INITIAL:
   'floating_minimum_size'                  -> FLOATING_MINIMUM_SIZE_WIDTH
   'floating_maximum_size'                  -> FLOATING_MAXIMUM_SIZE_WIDTH
   'floating_modifier'                      -> FLOATING_MODIFIER
+  'floating_all'                           -> FLOATING_ALL
+  'keep_empty_space'                       -> KEEP_EMPTY_SPACE
   'default_orientation'                    -> DEFAULT_ORIENTATION
   'workspace_layout'                       -> WORKSPACE_LAYOUT
   windowtype = 'default_border', 'new_window', 'default_floating_border', 'new_float'
@@ -277,6 +279,16 @@ state CRITERION_STR:
 state FOCUS_FOLLOWS_MOUSE:
   value = word
       -> call cfg_focus_follows_mouse($value)
+
+# floating_all bool
+state FLOATING_ALL:
+  value = word
+      -> call cfg_floating_all($value)
+
+# keep_empty_space bool
+state KEEP_EMPTY_SPACE:
+  value = word
+      -> call cfg_keep_empty_space($value)
 
 # mouse_warping warping_t
 state MOUSE_WARPING:

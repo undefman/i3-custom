@@ -99,6 +99,20 @@ void restore_geometry(void) {
     xcb_aux_sync(conn);
 }
 
+static Con *find_placeholder_recursive(Con *con) {
+    if (con->is_placeholder) {
+        return con;
+    }
+    Con *child;
+    TAILQ_FOREACH (child, &(con->nodes_head), nodes) {
+        Con *res = find_placeholder_recursive(child);
+        if (res != NULL) {
+            return res;
+        }
+    }
+    return NULL;
+}
+
 /*
  * Do some sanity checks and then reparent the window.
  *
@@ -282,72 +296,109 @@ void manage_window(xcb_window_t window, xcb_get_window_attributes_cookie_t cooki
     Con *nc = con_for_window(search_at, cwindow, &match);
     const bool match_from_restart_mode = (match && match->restart_mode);
     if (nc == NULL) {
-        Con *wm_desktop_ws = NULL;
+        Con *ws_to_search = NULL;
         Assignment *assignment;
-
-        /* If not, check if it is assigned to a specific workspace */
         if ((assignment = assignment_for(cwindow, A_TO_WORKSPACE)) ||
             (assignment = assignment_for(cwindow, A_TO_WORKSPACE_NUMBER))) {
-            DLOG("Assignment matches (%p)\n", match);
-
-            Con *assigned_ws = NULL;
             if (assignment->type == A_TO_WORKSPACE_NUMBER) {
                 long parsed_num = ws_name_to_number(assignment->dest.workspace);
-
-                assigned_ws = get_existing_workspace_by_num(parsed_num);
+                ws_to_search = get_existing_workspace_by_num(parsed_num);
             }
-            /* A_TO_WORKSPACE type assignment or fallback from A_TO_WORKSPACE_NUMBER
-             * when the target workspace number does not exist yet. */
-            if (!assigned_ws) {
-                assigned_ws = workspace_get(assignment->dest.workspace);
-            }
-
-            nc = con_descend_tiling_focused(assigned_ws);
-            DLOG("focused on ws %s: %p / %s\n", assigned_ws->name, nc, nc->name);
-            if (nc->type == CT_WORKSPACE) {
-                nc = tree_open_con(nc, cwindow);
-            } else {
-                nc = tree_open_con(nc->parent, cwindow);
-            }
-
-            /* set the urgency hint on the window if the workspace is not visible */
-            if (!workspace_is_visible(assigned_ws)) {
-                urgency_hint = true;
+            if (!ws_to_search) {
+                ws_to_search = workspace_get(assignment->dest.workspace);
             }
         } else if (cwindow->wm_desktop != NET_WM_DESKTOP_NONE &&
                    cwindow->wm_desktop != NET_WM_DESKTOP_ALL &&
-                   (wm_desktop_ws = ewmh_get_workspace_by_index(cwindow->wm_desktop)) != NULL) {
-            /* If _NET_WM_DESKTOP is set to a specific desktop, we open it
-             * there. Note that we ignore the special value 0xFFFFFFFF here
-             * since such a window will be made sticky anyway. */
-
-            DLOG("Using workspace %p / %s because _NET_WM_DESKTOP = %d.\n",
-                 wm_desktop_ws, wm_desktop_ws->name, cwindow->wm_desktop);
-
-            nc = con_descend_tiling_focused(wm_desktop_ws);
-            if (nc->type == CT_WORKSPACE) {
-                nc = tree_open_con(nc, cwindow);
-            } else {
-                nc = tree_open_con(nc->parent, cwindow);
-            }
+                   (ws_to_search = ewmh_get_workspace_by_index(cwindow->wm_desktop)) != NULL) {
+            /* Handled */
         } else if (startup_ws) {
-            /* If it was started on a specific workspace, we want to open it there. */
-            DLOG("Using workspace on which this application was started (%s)\n", startup_ws);
-            nc = con_descend_tiling_focused(workspace_get(startup_ws));
-            DLOG("focused on ws %s: %p / %s\n", startup_ws, nc, nc->name);
-            if (nc->type == CT_WORKSPACE) {
-                nc = tree_open_con(nc, cwindow);
-            } else {
-                nc = tree_open_con(nc->parent, cwindow);
-            }
+            ws_to_search = workspace_get(startup_ws);
         } else {
-            /* If not, insert it at the currently focused position */
-            if (focused->type == CT_CON && con_accepts_window(focused)) {
-                LOG("using current container, focused = %p, focused->name = %s\n",
-                    focused, focused->name);
-                nc = focused;
+            ws_to_search = con_get_workspace(focused);
+        }
+
+        Con *pc = NULL;
+        if (config.keep_empty_space && !cwindow->dock && ws_to_search != NULL) {
+            if (focused != NULL && focused->is_placeholder && con_get_workspace(focused) == ws_to_search) {
+                pc = focused;
             } else {
-                nc = tree_open_con(NULL, cwindow);
+                pc = find_placeholder_recursive(ws_to_search);
+            }
+        }
+
+        if (pc != NULL) {
+            DLOG("Reusing placeholder container %p for new window\n", pc);
+            nc = pc;
+            nc->is_placeholder = false;
+            nc->mapped = true;
+            FREE(nc->name);
+            nc->name = NULL;
+        } else {
+            Con *wm_desktop_ws = NULL;
+            /* If not, check if it is assigned to a specific workspace */
+            if ((assignment = assignment_for(cwindow, A_TO_WORKSPACE)) ||
+                (assignment = assignment_for(cwindow, A_TO_WORKSPACE_NUMBER))) {
+                DLOG("Assignment matches (%p)\n", match);
+
+                Con *assigned_ws = NULL;
+                if (assignment->type == A_TO_WORKSPACE_NUMBER) {
+                    long parsed_num = ws_name_to_number(assignment->dest.workspace);
+
+                    assigned_ws = get_existing_workspace_by_num(parsed_num);
+                }
+                /* A_TO_WORKSPACE type assignment or fallback from A_TO_WORKSPACE_NUMBER
+                 * when the target workspace number does not exist yet. */
+                if (!assigned_ws) {
+                    assigned_ws = workspace_get(assignment->dest.workspace);
+                }
+
+                nc = con_descend_tiling_focused(assigned_ws);
+                DLOG("focused on ws %s: %p / %s\n", assigned_ws->name, nc, nc->name);
+                if (nc->type == CT_WORKSPACE) {
+                    nc = tree_open_con(nc, cwindow);
+                } else {
+                    nc = tree_open_con(nc->parent, cwindow);
+                }
+
+                /* set the urgency hint on the window if the workspace is not visible */
+                if (!workspace_is_visible(assigned_ws)) {
+                    urgency_hint = true;
+                }
+            } else if (cwindow->wm_desktop != NET_WM_DESKTOP_NONE &&
+                       cwindow->wm_desktop != NET_WM_DESKTOP_ALL &&
+                       (wm_desktop_ws = ewmh_get_workspace_by_index(cwindow->wm_desktop)) != NULL) {
+                /* If _NET_WM_DESKTOP is set to a specific desktop, we open it
+                 * there. Note that we ignore the special value 0xFFFFFFFF here
+                 * since such a window will be made sticky anyway. */
+
+                DLOG("Using workspace %p / %s because _NET_WM_DESKTOP = %d.\n",
+                     wm_desktop_ws, wm_desktop_ws->name, cwindow->wm_desktop);
+
+                nc = con_descend_tiling_focused(wm_desktop_ws);
+                if (nc->type == CT_WORKSPACE) {
+                    nc = tree_open_con(nc, cwindow);
+                } else {
+                    nc = tree_open_con(nc->parent, cwindow);
+                }
+            } else if (startup_ws) {
+                /* If it was started on a specific workspace, we want to open it there. */
+                DLOG("Using workspace on which this application was started (%s)\n", startup_ws);
+                nc = con_descend_tiling_focused(workspace_get(startup_ws));
+                DLOG("focused on ws %s: %p / %s\n", startup_ws, nc, nc->name);
+                if (nc->type == CT_WORKSPACE) {
+                    nc = tree_open_con(nc, cwindow);
+                } else {
+                    nc = tree_open_con(nc->parent, cwindow);
+                }
+            } else {
+                /* If not, insert it at the currently focused position */
+                if (focused->type == CT_CON && con_accepts_window(focused)) {
+                    LOG("using current container, focused = %p, focused->name = %s\n",
+                        focused, focused->name);
+                    nc = focused;
+                } else {
+                    nc = tree_open_con(NULL, cwindow);
+                }
             }
         }
 
@@ -459,7 +510,7 @@ void manage_window(xcb_window_t window, xcb_get_window_attributes_cookie_t cooki
     }
 
     /* set floating if necessary */
-    bool want_floating = false;
+    bool want_floating = config.floating_all;
     if (xcb_reply_contains_atom(type_reply, A__NET_WM_WINDOW_TYPE_DIALOG) ||
         xcb_reply_contains_atom(type_reply, A__NET_WM_WINDOW_TYPE_UTILITY) ||
         xcb_reply_contains_atom(type_reply, A__NET_WM_WINDOW_TYPE_TOOLBAR) ||
@@ -527,7 +578,7 @@ void manage_window(xcb_window_t window, xcb_get_window_attributes_cookie_t cooki
 
     if (want_floating) {
         DLOG("geometry = %d x %d\n", nc->geometry.width, nc->geometry.height);
-        if (floating_enable(nc, true)) {
+        if (floating_enable(nc, true, false)) {
             nc->floating = FLOATING_AUTO_ON;
         }
     }

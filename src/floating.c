@@ -229,7 +229,7 @@ void floating_check_size(Con *floating_con, bool prefer_height) {
     }
 }
 
-bool floating_enable(Con *con, bool automatic) {
+bool floating_enable(Con *con, bool automatic, bool use_current_size) {
     bool set_focus = (con == focused);
 
     if (con_is_docked(con)) {
@@ -327,16 +327,21 @@ bool floating_enable(Con *con, bool automatic) {
 
     DLOG("Original rect: (%d, %d) with %d x %d\n", con->rect.x, con->rect.y, con->rect.width, con->rect.height);
     DLOG("Geometry = (%d, %d) with %d x %d\n", con->geometry.x, con->geometry.y, con->geometry.width, con->geometry.height);
-    nc->rect = con->geometry;
-    /* If the geometry was not set (split containers), we need to determine a
-     * sensible one by combining the geometry of all children */
-    if (rect_equals(nc->rect, (Rect){0, 0, 0, 0})) {
-        DLOG("Geometry not set, combining children\n");
-        Con *child;
-        TAILQ_FOREACH (child, &(con->nodes_head), nodes) {
-            DLOG("child geometry: %d x %d\n", child->geometry.width, child->geometry.height);
-            nc->rect.width += child->geometry.width;
-            nc->rect.height = max(nc->rect.height, child->geometry.height);
+    
+    if (use_current_size) {
+        nc->rect = con->rect;
+    } else {
+        nc->rect = con->geometry;
+        /* If the geometry was not set (split containers), we need to determine a
+         * sensible one by combining the geometry of all children */
+        if (rect_equals(nc->rect, (Rect){0, 0, 0, 0})) {
+            DLOG("Geometry not set, combining children\n");
+            Con *child;
+            TAILQ_FOREACH (child, &(con->nodes_head), nodes) {
+                DLOG("child geometry: %d x %d\n", child->geometry.width, child->geometry.height);
+                nc->rect.width += child->geometry.width;
+                nc->rect.height = max(nc->rect.height, child->geometry.height);
+            }
         }
     }
 
@@ -354,22 +359,24 @@ bool floating_enable(Con *con, bool automatic) {
         con->border_style = con->max_user_border_style = config.default_floating_border;
     }
 
-    /* Add pixels for the decoration. */
-    Rect bsr = con_border_style_rect(con);
+    if (!use_current_size) {
+        /* Add pixels for the decoration. */
+        Rect bsr = con_border_style_rect(con);
 
-    nc->rect.height -= bsr.height;
-    nc->rect.width -= bsr.width;
+        nc->rect.height -= bsr.height;
+        nc->rect.width -= bsr.width;
 
-    /* Honor the X11 border */
-    nc->rect.height += con->border_width * 2;
-    nc->rect.width += con->border_width * 2;
+        /* Honor the X11 border */
+        nc->rect.height += con->border_width * 2;
+        nc->rect.width += con->border_width * 2;
 
-    floating_check_size(nc, false);
+        floating_check_size(nc, false);
+    }
 
     /* Some clients (like GIMP’s color picker window) get mapped
      * to (0, 0), so we push them to a reasonable position
      * (centered over their leader) */
-    if (nc->rect.x == 0 && nc->rect.y == 0) {
+    if (!use_current_size && (config.floating_all || (nc->rect.x == 0 && nc->rect.y == 0))) {
         Con *leader;
         if (con->window && con->window->leader != XCB_NONE &&
             con->window->id != con->window->leader &&
@@ -468,7 +475,7 @@ void toggle_floating_mode(Con *con, bool automatic) {
         return;
     }
 
-    floating_enable(con, automatic);
+    floating_enable(con, automatic, false);
 }
 
 /*

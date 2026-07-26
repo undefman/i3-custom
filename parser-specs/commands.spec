@@ -31,6 +31,8 @@ state INITIAL:
   'fullscreen' -> FULLSCREEN
   'sticky' -> STICKY
   'split' -> SPLIT
+  'floating_all' -> FLOATING_ALL
+  'keep_empty_space' -> KEEP_EMPTY_SPACE
   'floating' -> FLOATING
   'mark' -> MARK
   'unmark' -> UNMARK
@@ -260,6 +262,16 @@ state SPLIT:
 state FLOATING:
   floating = 'enable', 'disable', 'toggle'
       -> call cmd_floating($floating)
+
+# floating_all on|off|toggle|enable|disable
+state FLOATING_ALL:
+  floating_all = 'on', 'off', 'toggle', 'enable', 'disable'
+      -> call cmd_floating_all($floating_all)
+
+# keep_empty_space on|off|toggle|enable|disable
+state KEEP_EMPTY_SPACE:
+  keep_empty_space = 'on', 'off', 'toggle', 'enable', 'disable'
+      -> call cmd_keep_empty_space($keep_empty_space)
 
 # mark [--add|--replace] [--toggle] <mark>
 state MARK:

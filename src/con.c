@@ -141,6 +141,9 @@ static void _con_attach(Con *con, Con *parent, Con *previous, bool ignore_focus)
          * their declaration order in the config file. See #3491. */
         current = NULL;
         TAILQ_FOREACH (loop, nodes_head, nodes) {
+            if (loop->window == NULL) {
+                continue;
+            }
             int result = strcasecmp_nullable(con->window->class_class, loop->window->class_class);
             if (result == 0) {
                 result = strcasecmp_nullable(con->window->class_instance, loop->window->class_instance);

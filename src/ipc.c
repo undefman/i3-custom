@@ -505,6 +505,9 @@ void dump_node(yajl_gen gen, Con *con, bool inplace_restart) {
     ystr("current_border_width");
     y(integer, con->current_border_width);
 
+    ystr("is_placeholder");
+    y(bool, con->is_placeholder);
+
     dump_rect(gen, "rect", con->rect);
     if (con_draw_decoration_into_frame(con)) {
         Rect simulated_deco_rect = con->deco_rect;

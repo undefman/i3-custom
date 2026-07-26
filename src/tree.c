@@ -222,6 +222,84 @@ bool tree_close_internal(Con *con, kill_window_t kill_window, bool dont_kill_par
             x_window_kill(con->window->id, kill_window);
             return false;
         }
+
+        if (config.keep_empty_space && !con_is_floating(con) && con->type == CT_CON && con->parent->type != CT_DOCKAREA && !con->is_placeholder) {
+            DLOG("keep_empty_space: converting con %p to a placeholder instead of closing it\n", con);
+            
+            xcb_change_window_attributes(conn, con->window->id, XCB_CW_EVENT_MASK, (uint32_t[]){XCB_NONE});
+            xcb_unmap_window(conn, con->window->id);
+            xcb_void_cookie_t cookie = xcb_reparent_window(conn, con->window->id, root, con->rect.x, con->rect.y);
+            add_ignore_event(cookie.sequence, 0);
+
+            long data[] = {XCB_ICCCM_WM_STATE_WITHDRAWN, XCB_NONE};
+            cookie = xcb_change_property(conn, XCB_PROP_MODE_REPLACE, con->window->id, A_WM_STATE, A_WM_STATE, 32, 2, data);
+            add_ignore_event(cookie.sequence, 0);
+
+            xcb_change_save_set(conn, XCB_SET_MODE_DELETE, con->window->id);
+            if (shape_supported) {
+                xcb_shape_select_input(conn, con->window->id, false);
+            }
+
+            ipc_send_window_event("close", con);
+            window_free(con->window);
+            con->window = NULL;
+
+            /* Check if we can merge this placeholder with an adjacent one */
+            Con *prev = TAILQ_PREV(con, nodes_head, nodes);
+            Con *next = TAILQ_NEXT(con, nodes);
+            if (prev != NULL && prev->is_placeholder) {
+                DLOG("keep_empty_space: merging con %p into prev placeholder %p\n", con, prev);
+                prev->percent += con->percent;
+                
+                if (focused == con) {
+                    con_activate(prev);
+                }
+                
+                con_detach(con);
+                x_con_kill(con);
+                con_free(con);
+                
+                /* Check if the new next of prev is also a placeholder, and merge it too */
+                Con *new_next = TAILQ_NEXT(prev, nodes);
+                if (new_next != NULL && new_next->is_placeholder) {
+                    DLOG("keep_empty_space: merging new_next placeholder %p into prev %p\n", new_next, prev);
+                    prev->percent += new_next->percent;
+                    if (focused == new_next) {
+                        con_activate(prev);
+                    }
+                    con_detach(new_next);
+                    x_con_kill(new_next);
+                    con_free(new_next);
+                }
+                
+                con_fix_percent(parent);
+                tree_render();
+                return true;
+            } else if (next != NULL && next->is_placeholder) {
+                DLOG("keep_empty_space: merging con %p into next placeholder %p\n", con, next);
+                next->percent += con->percent;
+                
+                if (focused == con) {
+                    con_activate(next);
+                }
+                
+                con_detach(con);
+                x_con_kill(con);
+                con_free(con);
+                
+                con_fix_percent(parent);
+                tree_render();
+                return true;
+            }
+
+            con->is_placeholder = true;
+            FREE(con->name);
+            con->name = sstrdup("[Empty]");
+            con->mapped = false;
+
+            tree_render();
+            return true;
+        }
         /* Ignore any further events by clearing the event mask,
          * unmap the window,
          * then reparent it to the root window. */

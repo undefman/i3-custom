@@ -189,7 +189,7 @@ static int json_end_map(void *ctx) {
 
             /* Force floating_enable to work */
             json_node->floating = FLOATING_AUTO_OFF;
-            floating_enable(json_node, false);
+            floating_enable(json_node, false, false);
             json_node->floating = old_floating_mode;
         }
 
@@ -577,6 +577,10 @@ static int json_bool(void *ctx, int val) {
 
     if (strcasecmp(last_key, "sticky") == 0) {
         json_node->sticky = val;
+    }
+
+    if (strcasecmp(last_key, "is_placeholder") == 0) {
+        json_node->is_placeholder = val;
     }
 
     if (parsing_swallows) {

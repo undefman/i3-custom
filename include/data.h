@@ -737,6 +737,7 @@ struct Con {
      * the _NET_WM_STATE_STICKY atom and will only be respected if the
      * window is floating. */
     bool sticky;
+    bool is_placeholder;
 
     /* layout is the layout of this container: one of split[v|h], stacked or
      * tabbed. Special containers in the tree (above workspaces) have special

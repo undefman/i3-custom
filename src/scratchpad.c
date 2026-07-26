@@ -47,7 +47,7 @@ void scratchpad_move(Con *con) {
      */
     Con *maybe_floating_con = con_inside_floating(con);
     if (maybe_floating_con == NULL) {
-        floating_enable(con, false);
+        floating_enable(con, false, false);
         con = con->parent;
     } else {
         con = maybe_floating_con;

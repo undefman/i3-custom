@@ -448,6 +448,14 @@ CFGFUN(focus_follows_mouse, const char *value) {
     config.disable_focus_follows_mouse = !boolstr(value);
 }
 
+CFGFUN(floating_all, const char *value) {
+    config.floating_all = boolstr(value);
+}
+
+CFGFUN(keep_empty_space, const char *value) {
+    config.keep_empty_space = boolstr(value);
+}
+
 CFGFUN(mouse_warping, const char *value) {
     if (strcmp(value, "none") == 0) {
         config.mouse_warping = POINTER_WARPING_NONE;

@@ -52,6 +52,8 @@ CFGFUN(default_orientation, const char *orientation);
 CFGFUN(workspace_layout, const char *layout);
 CFGFUN(workspace_back_and_forth, const char *value);
 CFGFUN(focus_follows_mouse, const char *value);
+CFGFUN(floating_all, const char *value);
+CFGFUN(keep_empty_space, const char *value);
 CFGFUN(mouse_warping, const char *value);
 CFGFUN(focus_wrapping, const char *value);
 CFGFUN(force_focus_wrapping, const char *value);

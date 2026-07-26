@@ -146,6 +146,8 @@ struct Config {
      * the whole bar by dzen2, for example using the i3-wsbar script which
      * comes with i3. Thus, you can turn it off entirely. */
     bool disable_workspace_bar;
+    bool floating_all;
+    bool keep_empty_space;
 
     /** When focus wrapping is enabled (the default), attempting to
      * move focus past the edge of the screen (in other words, in a

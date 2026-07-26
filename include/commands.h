@@ -151,6 +151,8 @@ void cmd_move_con_to_mark(I3_CMD, const char *mark);
  *
  */
 void cmd_floating(I3_CMD, const char *floating_mode);
+void cmd_floating_all(I3_CMD, const char *floating_all_mode);
+void cmd_keep_empty_space(I3_CMD, const char *keep_empty_space_mode);
 
 /**
  * Implementation of 'split v|h|t|vertical|horizontal|toggle'.

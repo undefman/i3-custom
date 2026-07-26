@@ -1154,7 +1154,7 @@ void cmd_floating(I3_CMD, const char *floating_mode) {
         } else {
             DLOG("should switch mode to %s\n", floating_mode);
             if (strcmp(floating_mode, "enable") == 0) {
-                floating_enable(current->con, false);
+                floating_enable(current->con, false, false);
             } else {
                 floating_disable(current->con);
             }
@@ -1164,6 +1164,83 @@ void cmd_floating(I3_CMD, const char *floating_mode) {
 
     cmd_output->needs_tree_render = true;
     // XXX: default reply for now, make this a better reply
+    ysuccess(true);
+}
+
+/*
+ * Implementation of 'floating_all on|off|toggle|enable|disable'
+ *
+ */
+void cmd_floating_all(I3_CMD, const char *floating_all_mode) {
+    assert(floating_all_mode != NULL);
+    DLOG("floating_all_mode=%s\n", floating_all_mode);
+
+    bool target;
+    if (strcmp(floating_all_mode, "toggle") == 0) {
+        target = !config.floating_all;
+    } else if (strcmp(floating_all_mode, "on") == 0 || strcmp(floating_all_mode, "enable") == 0) {
+        target = true;
+    } else {
+        target = false;
+    }
+
+    if (config.floating_all != target) {
+        config.floating_all = target;
+        if (target) {
+            /* Float all currently tiling windows while keeping their current size */
+            int count = 0;
+            Con *con;
+            TAILQ_FOREACH(con, &all_cons, all_cons) {
+                if (con->window != NULL && !con_is_floating(con) && !con_is_docked(con)) {
+                    Con *ws = con_get_workspace(con);
+                    if (ws != NULL && !con_is_internal(ws)) {
+                        count++;
+                    }
+                }
+            }
+            if (count > 0) {
+                Con **targets = smalloc(count * sizeof(Con *));
+                int idx = 0;
+                TAILQ_FOREACH(con, &all_cons, all_cons) {
+                    if (con->window != NULL && !con_is_floating(con) && !con_is_docked(con)) {
+                        Con *ws = con_get_workspace(con);
+                        if (ws != NULL && !con_is_internal(ws)) {
+                            targets[idx++] = con;
+                        }
+                    }
+                }
+                for (int i = 0; i < count; i++) {
+                    floating_enable(targets[i], false, true);
+                }
+                free(targets);
+            }
+        }
+    }
+
+    cmd_output->needs_tree_render = true;
+    ysuccess(true);
+}
+
+/*
+ * Implementation of 'keep_empty_space on|off|toggle|enable|disable'
+ *
+ */
+void cmd_keep_empty_space(I3_CMD, const char *keep_empty_space_mode) {
+    assert(keep_empty_space_mode != NULL);
+    DLOG("keep_empty_space_mode=%s\n", keep_empty_space_mode);
+
+    bool target;
+    if (strcmp(keep_empty_space_mode, "toggle") == 0) {
+        target = !config.keep_empty_space;
+    } else if (strcmp(keep_empty_space_mode, "on") == 0 || strcmp(keep_empty_space_mode, "enable") == 0) {
+        target = true;
+    } else {
+        target = false;
+    }
+
+    config.keep_empty_space = target;
+
+    cmd_output->needs_tree_render = true;
     ysuccess(true);
 }
 

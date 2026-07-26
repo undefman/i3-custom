@@ -887,7 +887,7 @@ static void handle_client_message(xcb_client_message_event_t *event) {
              * let's float it and make it sticky. */
             DLOG("The window was requested to be visible on all workspaces, making it sticky and floating.\n");
 
-            if (floating_enable(con, false)) {
+            if (floating_enable(con, false, false)) {
                 con->floating = FLOATING_AUTO_ON;
 
                 con->sticky = true;

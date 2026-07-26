@@ -214,6 +214,8 @@ bool load_configuration(const char *override_configpath, config_load_t load_type
     config.default_floating_border_width = logical_px(2);
     /* Set default_orientation to NO_ORIENTATION for auto orientation. */
     config.default_orientation = NO_ORIENTATION;
+    config.floating_all = false;
+    config.keep_empty_space = true;
 
     config.gaps.inner = 0;
     config.gaps.top = 0;
