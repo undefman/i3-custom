@@ -16,6 +16,8 @@ Normally, when a window is closed in i3, the tiling layout collapses and the rem
 5. **Deleting slots manually**: Focusing a placeholder and running the `kill` command (e.g., `$mod+Shift+q`) deletes the empty slot normally, allowing surrounding windows to expand and reclaim the space.
 6. **Empty Workspace Cleanup**: Workspaces that contain only placeholder containers (i.e. all windows have been closed) are automatically cleaned up and closed when switching away from them (just like normal empty workspaces).
 7. **Auto-Cleanup on Squeeze**: If a placeholder is resized (via keyboard or mouse) below a width or height threshold of 40 pixels, it is automatically destroyed, allowing surrounding windows to expand and reclaim the space.
+8. **Failed Window Mapping Protection**: If a window mapping or reparenting fails (e.g., temporary helper/transient windows opened and quickly closed by applications during splits/restores), the container is deleted immediately without leaving unwanted empty placeholders.
+9. **Client Reparenting Detection (UnmapNotify Bypass)**: If a client window is unmapped because it was reparented internally by the client itself (e.g., splitting terminal pane in Konsole) rather than being closed/destroyed, i3 queries the window's parent. If it is no longer under our frame window, it bypasses the placeholder conversion, preventing unwanted empty spaces.
 
 ---
 
@@ -81,6 +83,16 @@ The implementation spans the following files:
 * **File**: `src/tree.c`
   - Modified `tree_render` to scan the global container list `all_cons` for any active placeholder containers whose parent is a split container (`CT_CON`) or a workspace (`CT_WORKSPACE`).
   - If a placeholder's width (for horizontal split) or height (for vertical split) is reduced below 40 pixels, it calls `tree_close_internal` to destroy it, letting adjacent tiling windows expand to fill its space. Used a recursion guard to prevent nested rendering loops.
+
+### 9. Failed Window Mapping Protection
+* **File**: `src/manage.c`
+  - Updated the window mapping function `manage_window` to clean up its newly created container (`nc`) and free the window metadata (`cwindow`) immediately if the X11 reparenting request fails.
+  - Setting `nc->window = NULL` before calling `tree_close_internal` bypasses the `keep_empty_space` intercept logic, ensuring the failed container is completely deleted instead of turning into an unwanted placeholder.
+
+### 10. Client Reparenting Detection
+* **File**: `src/handlers.c`
+  - Modified `handle_unmap_notify_event` to query the window parent via `xcb_query_tree` upon receiving an `UnmapNotify` event.
+  - If the window's parent is not our container frame (`con->frame.id`), it indicates the window was reparented internally by the client (such as a split pane in Konsole). i3 temporarily disables `config.keep_empty_space` before calling `tree_close_internal`, ensuring the container is deleted normally without creating a placeholder.
 
 ---
 

@@ -515,7 +515,19 @@ static void handle_unmap_notify_event(xcb_unmap_notify_event_t *event) {
     xcb_delete_property(conn, event->window, A__NET_WM_DESKTOP);
     xcb_delete_property(conn, event->window, A__NET_WM_STATE);
 
+    bool old_keep = config.keep_empty_space;
+    xcb_query_tree_reply_t *query_reply;
+    if ((query_reply = xcb_query_tree_reply(conn, xcb_query_tree(conn, event->window), 0)) != NULL) {
+        if (query_reply->parent != con->frame.id) {
+            DLOG("Window 0x%08x was reparented to 0x%08x (not our frame 0x%08x), disabling keep_empty_space for this close\n",
+                 event->window, query_reply->parent, con->frame.id);
+            config.keep_empty_space = false;
+        }
+        free(query_reply);
+    }
+
     tree_close_internal(con, DONT_KILL_WINDOW, false);
+    config.keep_empty_space = old_keep;
     tree_render();
 
 ignore_end:

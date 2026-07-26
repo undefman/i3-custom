@@ -605,6 +605,9 @@ void manage_window(xcb_window_t window, xcb_get_window_attributes_cookie_t cooki
     xcb_void_cookie_t rcookie = xcb_reparent_window_checked(conn, window, nc->frame.id, 0, 0);
     if (xcb_request_check(conn, rcookie) != NULL) {
         LOG("Could not reparent the window, aborting\n");
+        nc->window = NULL;
+        tree_close_internal(nc, DONT_KILL_WINDOW, false);
+        window_free(cwindow);
         goto geom_out;
     }
 
