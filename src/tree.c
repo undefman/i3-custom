@@ -223,7 +223,9 @@ bool tree_close_internal(Con *con, kill_window_t kill_window, bool dont_kill_par
             return false;
         }
 
-        if (config.keep_empty_space && !con_is_floating(con) && con->type == CT_CON && con->parent->type != CT_DOCKAREA && !con->is_placeholder) {
+        time_t age = time(NULL) - con->window->managed_since;
+        bool is_short_lived = (age >= 0 && age <= 1);
+        if (config.keep_empty_space && !is_short_lived && !con_is_floating(con) && con->type == CT_CON && con->parent->type != CT_DOCKAREA && !con->is_placeholder) {
             DLOG("keep_empty_space: converting con %p to a placeholder instead of closing it\n", con);
             
             xcb_change_window_attributes(conn, con->window->id, XCB_CW_EVENT_MASK, (uint32_t[]){XCB_NONE});

@@ -18,6 +18,7 @@ Normally, when a window is closed in i3, the tiling layout collapses and the rem
 7. **Auto-Cleanup on Squeeze**: If a placeholder is resized (via keyboard or mouse) below a width or height threshold of 40 pixels, it is automatically destroyed, allowing surrounding windows to expand and reclaim the space.
 8. **Failed Window Mapping Protection**: If a window mapping or reparenting fails (e.g., temporary helper/transient windows opened and quickly closed by applications during splits/restores), the container is deleted immediately without leaving unwanted empty placeholders.
 9. **Client Reparenting Detection (UnmapNotify Bypass)**: If a client window is unmapped because it was reparented internally by the client itself (e.g., splitting terminal pane in Konsole) rather than being closed/destroyed, i3 queries the window's parent. If it is no longer under our frame window, it bypasses the placeholder conversion, preventing unwanted empty spaces.
+10. **Short-Lived Window Filtering**: To prevent temporary dummy/helper windows (e.g., created by Konsole when splitting views or DPI testing) from leaving placeholders if they are destroyed immediately after being mapped, i3 checks if the window's lifetime is 1 second or less. Such short-lived windows do not trigger placeholder creation.
 
 ---
 
@@ -93,6 +94,11 @@ The implementation spans the following files:
 * **File**: `src/handlers.c`
   - Modified `handle_unmap_notify_event` to query the window parent via `xcb_query_tree` upon receiving an `UnmapNotify` event.
   - If the window's parent is not our container frame (`con->frame.id`), it indicates the window was reparented internally by the client (such as a split pane in Konsole). i3 temporarily disables `config.keep_empty_space` before calling `tree_close_internal`, ensuring the container is deleted normally without creating a placeholder.
+
+### 11. Short-Lived Window Filtering
+* **File**: `src/tree.c`
+  - Modified `tree_close_internal` to check the age of the window being closed using `time(NULL) - con->window->managed_since`.
+  - If the window was managed for 1 second or less, it is treated as a programmatic temporary window (such as those created and immediately destroyed by Konsole during multiple split pane actions) rather than a user-initiated window close. This prevents it from being converted into a placeholder.
 
 ---
 
