@@ -318,7 +318,25 @@ void manage_window(xcb_window_t window, xcb_get_window_attributes_cookie_t cooki
         }
 
         Con *pc = NULL;
-        if (config.keep_empty_space && !cwindow->dock && ws_to_search != NULL) {
+        bool would_float = config.floating_all;
+        if (xcb_reply_contains_atom(type_reply, A__NET_WM_WINDOW_TYPE_DIALOG) ||
+            xcb_reply_contains_atom(type_reply, A__NET_WM_WINDOW_TYPE_UTILITY) ||
+            xcb_reply_contains_atom(type_reply, A__NET_WM_WINDOW_TYPE_TOOLBAR) ||
+            xcb_reply_contains_atom(type_reply, A__NET_WM_WINDOW_TYPE_NOTIFICATION) ||
+            xcb_reply_contains_atom(type_reply, A__NET_WM_WINDOW_TYPE_SPLASH) ||
+            xcb_reply_contains_atom(state_reply, A__NET_WM_STATE_MODAL) ||
+            (cwindow->max_width > 0 && cwindow->max_height > 0 &&
+             cwindow->min_height == cwindow->max_height &&
+             cwindow->min_width == cwindow->max_width) ||
+            cwindow->transient_for != XCB_NONE ||
+            (cwindow->leader != XCB_NONE &&
+             cwindow->leader != cwindow->id &&
+             con_by_window_id(cwindow->leader) != NULL) ||
+            cwindow->wm_desktop == NET_WM_DESKTOP_ALL) {
+            would_float = true;
+        }
+
+        if (config.keep_empty_space && !cwindow->dock && !would_float && ws_to_search != NULL) {
             if (focused != NULL && focused->is_placeholder && con_get_workspace(focused) == ws_to_search) {
                 pc = focused;
             } else {
