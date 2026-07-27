@@ -681,7 +681,9 @@ void x_draw_decoration(Con *con) {
     }
 
     i3String *title = NULL;
-    if (win == NULL) {
+    if (con->is_placeholder) {
+        title = con->name ? i3string_from_utf8(con->name) : i3string_from_utf8("[Empty]");
+    } else if (win == NULL) {
         if (con->title_format == NULL) {
             char *_title;
             char *tree = con_get_tree_representation(con);
@@ -766,7 +768,9 @@ void x_draw_decoration(Con *con) {
 
     x_draw_decoration_after_title(con, p, dest_surface);
 copy_pixmaps:
-    draw_util_copy_surface(&(con->frame_buffer), &(con->frame), 0, 0, 0, 0, con->rect.width, con->rect.height);
+    if (!con->is_placeholder) {
+        draw_util_copy_surface(&(con->frame_buffer), &(con->frame), 0, 0, 0, 0, con->rect.width, con->rect.height);
+    }
 }
 
 /*
@@ -967,7 +971,9 @@ void x_push_node(Con *con) {
         }
     } else if (con->window == NULL) {
         /* not a stacked or tabbed split container */
-        con->mapped = false;
+        if (!con->is_placeholder) {
+            con->mapped = false;
+        }
     }
 
     bool need_reshape = false;
@@ -1101,7 +1107,7 @@ void x_push_node(Con *con) {
          * fast as possible) */
         xcb_flush(conn);
         xcb_set_window_rect(conn, con->frame.id, rect);
-        if (con->frame_buffer.id != XCB_NONE) {
+        if (con->frame_buffer.id != XCB_NONE && !con->is_placeholder) {
             draw_util_copy_surface(&(con->frame_buffer), &(con->frame), 0, 0, 0, 0, con->rect.width, con->rect.height);
         }
         xcb_flush(conn);
@@ -1173,7 +1179,7 @@ void x_push_node(Con *con) {
         xcb_change_window_attributes(conn, con->frame.id, XCB_CW_EVENT_MASK, values);
 
         /* copy the pixmap contents to the frame window immediately after mapping */
-        if (con->frame_buffer.id != XCB_NONE) {
+        if (con->frame_buffer.id != XCB_NONE && !con->is_placeholder) {
             draw_util_copy_surface(&(con->frame_buffer), &(con->frame), 0, 0, 0, 0, con->rect.width, con->rect.height);
         }
         xcb_flush(conn);
@@ -1192,6 +1198,11 @@ void x_push_node(Con *con) {
 
     set_hidden_state(con);
     set_maximized_state(con);
+
+    if (con->is_placeholder) {
+        xcb_change_window_attributes(conn, con->frame.id, XCB_CW_BACK_PIXMAP, (uint32_t[]){XCB_BACK_PIXMAP_PARENT_RELATIVE});
+        xcb_clear_area(conn, 0, con->frame.id, 0, 0, 0, 0);
+    }
 
     /* Handle all children and floating windows of this node. We recurse
      * in focus order to display the focused client in a stack first when

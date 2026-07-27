@@ -190,7 +190,12 @@ void regrab_all_buttons(xcb_connection_t *conn) {
 
     Con *con;
     TAILQ_FOREACH (con, &all_cons, all_cons) {
+        xcb_ungrab_button(conn, XCB_BUTTON_INDEX_ANY, con->frame.id, XCB_BUTTON_MASK_ANY);
+
         if (con->window == NULL) {
+            if (con->is_placeholder) {
+                xcb_grab_buttons(conn, con->frame.id, buttons);
+            }
             continue;
         }
 

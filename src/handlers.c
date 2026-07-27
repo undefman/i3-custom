@@ -658,6 +658,12 @@ static void handle_expose_event(xcb_expose_event_t *event) {
         return;
     }
 
+    if (parent->is_placeholder) {
+        xcb_clear_area(conn, 0, parent->frame.id, 0, 0, 0, 0);
+        xcb_flush(conn);
+        return;
+    }
+
     /* Since we render to our surface on every change anyways, expose events
      * only tell us that the X server lost (parts of) the window contents. */
     draw_util_copy_surface(&(parent->frame_buffer), &(parent->frame),

@@ -20,7 +20,7 @@ extern xcb_visualtype_t *visual_type;
 static void draw_util_set_source_color(surface_t *surface, color_t color);
 
 static bool surface_initialized(surface_t *surface) {
-    if (surface->id == XCB_NONE) {
+    if (surface->id == XCB_NONE || surface->surface == NULL) {
         ELOG("Surface %p is not initialized, skipping drawing.\n", surface);
         return false;
     }

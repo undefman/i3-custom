@@ -331,6 +331,8 @@ void manage_window(xcb_window_t window, xcb_get_window_attributes_cookie_t cooki
             nc = pc;
             nc->is_placeholder = false;
             nc->mapped = true;
+            nc->border_style = nc->max_user_border_style = config.default_border;
+            nc->current_border_width = config.default_border_width;
             FREE(nc->name);
             nc->name = NULL;
         } else {
@@ -738,6 +740,8 @@ void manage_window(xcb_window_t window, xcb_get_window_attributes_cookie_t cooki
 
     /* If a sticky window was mapped onto another workspace, make sure to pop it to the front. */
     output_push_sticky_windows(focused);
+
+    regrab_all_buttons(conn);
 
 geom_out:
     free(geom);

@@ -316,6 +316,12 @@ bool tree_close_internal(Con *con, kill_window_t kill_window, bool dont_kill_par
             FREE(con->name);
             con->name = sstrdup("[Empty]");
             con->mapped = false;
+            con->border_style = BS_NONE;
+            con->current_border_width = 0;
+            draw_util_surface_free(conn, &(con->frame_buffer));
+            con->frame_buffer.id = XCB_NONE;
+            xcb_change_window_attributes(conn, con->frame.id, XCB_CW_BACK_PIXMAP, (uint32_t[]){XCB_BACK_PIXMAP_PARENT_RELATIVE});
+            regrab_all_buttons(conn);
 
             tree_render();
             return true;

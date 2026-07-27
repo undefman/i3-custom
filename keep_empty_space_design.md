@@ -20,6 +20,7 @@ Normally, when a window is closed in i3, the tiling layout collapses and the rem
 9. **Client Reparenting Detection (UnmapNotify Bypass)**: If a client window is unmapped because it was reparented internally by the client itself (e.g., splitting terminal pane in Konsole) rather than being closed/destroyed, i3 queries the window's parent. If it is no longer under our frame window, it bypasses the placeholder conversion, preventing unwanted empty spaces.
 10. **Short-Lived Window Filtering**: To prevent temporary dummy/helper windows (e.g., created by Konsole when splitting views or DPI testing) from leaving placeholders if they are destroyed immediately after being mapped, i3 checks if the window's lifetime is 200 milliseconds or less. Such short-lived windows do not trigger placeholder creation. (A 200ms threshold is selected because it is long enough for programmatic windows, yet short enough that no human-initiated window close could occur within it, preventing any user-facing inconsistencies).
 11. **Mouse Over-Resize to Fill**: During interactive graphical (mouse) resizing, if the user drags the border towards a placeholder and past its boundary (making its size less than 40px, or trying to drag past it entirely), the placeholder is automatically destroyed, and the resized window expands to reclaim the space, seamlessly filling it.
+12. **Click-to-Focus Placeholders**: Users can click directly on the empty space `[Empty]` using the mouse to focus it. i3 intercepts clicks on the placeholder's frame window and activates focus on the container.
 
 ---
 
@@ -107,6 +108,22 @@ The implementation spans the following files:
 * **File**: `src/resize.c`
   - Modified the graphical mouse resize handler `resize_graphical_handler` to monitor if one of the resized containers is a placeholder.
   - If a placeholder is being shrunk, and the dragging movement reduces the placeholder's size below 40 pixels (or pushes past it entirely), it automatically destroys the placeholder using `tree_close_internal` and triggers `tree_render()`. This allows the expanding window to immediately reclaim and fill 100% of the space.
+
+### 13. Click-to-Focus Placeholders
+* **Files**: `src/bindings.c`, `src/tree.c`, `src/manage.c`, `src/x.c`, `src/handlers.c`, `libi3/draw_util.c`
+  - Modified `regrab_all_buttons` in `src/bindings.c` to grab mouse buttons on the frame window `con->frame.id` if the container is a placeholder (`con->is_placeholder == true`). If a container is not a placeholder, it explicitly ungrabs buttons on the frame to prevent dangling grabs.
+  - Added calls to `regrab_all_buttons` when a container is converted to a placeholder in `src/tree.c` or when a placeholder container is reused for a new client window in `src/manage.c`.
+  - Reset the container's border style and border width to `config.default_border` and `config.default_border_width` in `src/manage.c` when reusing a placeholder, restoring normal window decorations and titlebars.
+  - Modified `x_push_node` in `src/x.c` to not force `con->mapped = false` for containers without windows if the container is a placeholder, ensuring its frame window remains mapped to the screen.
+  - Set the placeholder container's border style to `BS_NONE` and `current_border_width = 0` in `src/tree.c` when creating it to hide all borders/titlebars.
+  - Freed the container's decoration frame buffer `frame_buffer` using `draw_util_surface_free` and explicitly set `con->frame_buffer.id = XCB_NONE` when converting it to a placeholder in `src/tree.c`, indicating to the system that the pixmap must be recreated when the container is reused.
+  - Configured the placeholder frame window's X11 background pixmap to `XCB_BACK_PIXMAP_PARENT_RELATIVE` in both `src/tree.c` and `src/x.c` (`x_push_node`) to make it completely transparent (revealing the desktop).
+  - Added an `xcb_clear_area` call inside `x_push_node` in `src/x.c` for placeholders to force the X server to repaint/clear the window frame area, copying the parent (desktop) background immediately when mapped.
+  - Bypass surface copying in `x_draw_decoration` and `x_push_node` (`src/x.c`) if the container is a placeholder, preventing copying from freed frame buffers.
+  - Updated `handle_expose_event` in `src/handlers.c` to check if the parent container is a placeholder; if so, it clears the area using `xcb_clear_area` and returns immediately rather than attempting to copy from the freed `frame_buffer` surface.
+  - Modified `surface_initialized` in `libi3/draw_util.c` to return `false` if `surface->surface` is `NULL`. This makes drawing operations safe against freed buffers (such as when `con->frame_buffer` is freed) and prevents Cairo segmentation fault crashes, while keeping `surface->id` intact for container state lookups.
+  - Modified titlebar generation in `src/x.c` to use `con->name` (which is `"[Empty]"`) instead of falling back to `"i3: nowin"` for placeholders.
+  - When a user clicks on the empty space, X11 sends a `ButtonPress` event on the frame window, which is mapped back to the placeholder container and handled by `route_click` in `src/click.c` to focus it via `con_activate`.
 
 ---
 
