@@ -19,6 +19,7 @@ Normally, when a window is closed in i3, the tiling layout collapses and the rem
 8. **Failed Window Mapping Protection**: If a window mapping or reparenting fails (e.g., temporary helper/transient windows opened and quickly closed by applications during splits/restores), the container is deleted immediately without leaving unwanted empty placeholders.
 9. **Client Reparenting Detection (UnmapNotify Bypass)**: If a client window is unmapped because it was reparented internally by the client itself (e.g., splitting terminal pane in Konsole) rather than being closed/destroyed, i3 queries the window's parent. If it is no longer under our frame window, it bypasses the placeholder conversion, preventing unwanted empty spaces.
 10. **Short-Lived Window Filtering**: To prevent temporary dummy/helper windows (e.g., created by Konsole when splitting views or DPI testing) from leaving placeholders if they are destroyed immediately after being mapped, i3 checks if the window's lifetime is 200 milliseconds or less. Such short-lived windows do not trigger placeholder creation. (A 200ms threshold is selected because it is long enough for programmatic windows, yet short enough that no human-initiated window close could occur within it, preventing any user-facing inconsistencies).
+11. **Mouse Over-Resize to Fill**: During interactive graphical (mouse) resizing, if the user drags the border towards a placeholder and past its boundary (making its size less than 40px, or trying to drag past it entirely), the placeholder is automatically destroyed, and the resized window expands to reclaim the space, seamlessly filling it.
 
 ---
 
@@ -101,6 +102,11 @@ The implementation spans the following files:
 * **File**: `src/tree.c`
   - Modified `tree_close_internal` to check the age of the window being closed using `gettimeofday` compared to `con->window->managed_since_tv`.
   - Calculates the elapsed time in milliseconds. If the window was managed for 200 milliseconds or less, it is treated as a programmatic temporary window (such as those created and immediately destroyed by Konsole during multiple split pane actions) rather than a user-initiated window close. This prevents it from being converted into a placeholder, while ensuring manual quick closes (which always take >500ms) consistently leave placeholders.
+
+### 12. Mouse Over-Resize to Fill
+* **File**: `src/resize.c`
+  - Modified the graphical mouse resize handler `resize_graphical_handler` to monitor if one of the resized containers is a placeholder.
+  - If a placeholder is being shrunk, and the dragging movement reduces the placeholder's size below 40 pixels (or pushes past it entirely), it automatically destroys the placeholder using `tree_close_internal` and triggers `tree_render()`. This allows the expanding window to immediately reclaim and fill 100% of the space.
 
 ---
 

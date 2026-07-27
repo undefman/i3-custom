@@ -283,6 +283,25 @@ void resize_graphical_handler(Con *first, Con *second, orientation_t orientation
         return;
     }
 
+    int first_size = (orientation == HORIZ ? first->rect.width : first->rect.height);
+    int second_size = (orientation == HORIZ ? second->rect.width : second->rect.height);
+
+    if (pixels > 0 && second->is_placeholder) {
+        if (second_size - pixels < 40) {
+            DLOG("Graphical resize: deleting second placeholder container %p\n", second);
+            tree_close_internal(second, DONT_KILL_WINDOW, false);
+            tree_render();
+            return;
+        }
+    } else if (pixels < 0 && first->is_placeholder) {
+        if (first_size + pixels < 40) {
+            DLOG("Graphical resize: deleting first placeholder container %p\n", first);
+            tree_close_internal(first, DONT_KILL_WINDOW, false);
+            tree_render();
+            return;
+        }
+    }
+
     /* if we got thus far, the containers must have valid percentages. */
     assert(first->percent > 0.0);
     assert(second->percent > 0.0);
