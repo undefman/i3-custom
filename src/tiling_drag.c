@@ -11,7 +11,7 @@
 static xcb_window_t create_drop_indicator(Rect rect);
 
 static bool is_tiling_drop_target(Con *con) {
-    if (!con_has_managed_window(con) ||
+    if ((!con_has_managed_window(con) && !con->is_placeholder) ||
         con_is_floating(con) ||
         con_is_hidden(con)) {
         return false;
@@ -334,6 +334,16 @@ void tiling_drag(Con *con, xcb_button_press_event_t *event, bool use_threshold) 
     const position_t position = position_from_direction(direction);
     const layout_t layout = orientation == VERT ? L_SPLITV : L_SPLITH;
     con_disable_fullscreen(con);
+    if (target->is_placeholder) {
+        DLOG("drop on placeholder %p, replacing it\n", target);
+        insert_con_into(con, target, BEFORE);
+        tree_close_internal(target, DONT_KILL_WINDOW, false);
+        con_activate(con);
+        ipc_send_window_event("move", con);
+        tree_render();
+        return;
+    }
+
     switch (drop_type) {
         case DT_CENTER:
             /* Also handles workspaces.*/
