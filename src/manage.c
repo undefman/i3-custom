@@ -668,6 +668,7 @@ void manage_window(xcb_window_t window, xcb_get_window_attributes_cookie_t cooki
     render_con(croot);
 
     cwindow->managed_since = time(NULL);
+    gettimeofday(&cwindow->managed_since_tv, NULL);
 
     /* Send an event about window creation */
     ipc_send_window_event("new", nc);

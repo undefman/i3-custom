@@ -513,6 +513,7 @@ struct Window {
     /* Time when the window became managed. Used to determine whether a window
      * should be swallowed after initial management. */
     time_t managed_since;
+    struct timeval managed_since_tv;
 
     /* The window has been swallowed. */
     bool swallowed;

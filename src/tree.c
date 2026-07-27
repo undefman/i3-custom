@@ -223,9 +223,27 @@ bool tree_close_internal(Con *con, kill_window_t kill_window, bool dont_kill_par
             return false;
         }
 
-        time_t age = time(NULL) - con->window->managed_since;
-        bool is_short_lived = (age >= 0 && age <= 1);
-        if (config.keep_empty_space && !is_short_lived && !con_is_floating(con) && con->type == CT_CON && con->parent->type != CT_DOCKAREA && !con->is_placeholder) {
+        bool is_chrome_picker = false;
+        if (con->window->class_class != NULL &&
+            (strcasecmp(con->window->class_class, "Google-chrome") == 0 ||
+             strcasecmp(con->window->class_class, "Chromium") == 0)) {
+            const char *title = con->window->name ? i3string_as_utf8(con->window->name) : NULL;
+            if (title != NULL) {
+                if (strstr(title, "Who's using Chrome") != NULL ||
+                    strstr(title, "Who's using Chromium") != NULL ||
+                    strcmp(title, "Google Chrome") == 0 ||
+                    strcmp(title, "Chromium") == 0) {
+                    is_chrome_picker = true;
+                }
+            }
+        }
+
+        struct timeval tv_now;
+        gettimeofday(&tv_now, NULL);
+        long elapsed_ms = (tv_now.tv_sec - con->window->managed_since_tv.tv_sec) * 1000 +
+                          (tv_now.tv_usec - con->window->managed_since_tv.tv_usec) / 1000;
+        bool is_short_lived = (elapsed_ms >= 0 && elapsed_ms <= 200);
+        if (config.keep_empty_space && !is_chrome_picker && !is_short_lived && !con_is_floating(con) && con->type == CT_CON && con->parent->type != CT_DOCKAREA && !con->is_placeholder) {
             DLOG("keep_empty_space: converting con %p to a placeholder instead of closing it\n", con);
             
             xcb_change_window_attributes(conn, con->window->id, XCB_CW_EVENT_MASK, (uint32_t[]){XCB_NONE});

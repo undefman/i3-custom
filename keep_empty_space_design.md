@@ -18,7 +18,7 @@ Normally, when a window is closed in i3, the tiling layout collapses and the rem
 7. **Auto-Cleanup on Squeeze**: If a placeholder is resized (via keyboard or mouse) below a width or height threshold of 40 pixels, it is automatically destroyed, allowing surrounding windows to expand and reclaim the space.
 8. **Failed Window Mapping Protection**: If a window mapping or reparenting fails (e.g., temporary helper/transient windows opened and quickly closed by applications during splits/restores), the container is deleted immediately without leaving unwanted empty placeholders.
 9. **Client Reparenting Detection (UnmapNotify Bypass)**: If a client window is unmapped because it was reparented internally by the client itself (e.g., splitting terminal pane in Konsole) rather than being closed/destroyed, i3 queries the window's parent. If it is no longer under our frame window, it bypasses the placeholder conversion, preventing unwanted empty spaces.
-10. **Short-Lived Window Filtering**: To prevent temporary dummy/helper windows (e.g., created by Konsole when splitting views or DPI testing) from leaving placeholders if they are destroyed immediately after being mapped, i3 checks if the window's lifetime is 1 second or less. Such short-lived windows do not trigger placeholder creation.
+10. **Short-Lived Window Filtering**: To prevent temporary dummy/helper windows (e.g., created by Konsole when splitting views or DPI testing) from leaving placeholders if they are destroyed immediately after being mapped, i3 checks if the window's lifetime is 200 milliseconds or less. Such short-lived windows do not trigger placeholder creation. (A 200ms threshold is selected because it is long enough for programmatic windows, yet short enough that no human-initiated window close could occur within it, preventing any user-facing inconsistencies).
 
 ---
 
@@ -31,6 +31,7 @@ The implementation spans the following files:
   - Added `bool keep_empty_space;` to the global `struct Config` to store the active state.
 * **File**: `include/data.h`
   - Added `bool is_placeholder;` to `struct Con` to track whether a container represents an empty slot.
+  - Added `struct timeval managed_since_tv;` to `struct Window` to record high-resolution timestamps.
 * **File**: `src/config.c`
   - Initialized `config.keep_empty_space = false;` on startup.
 
@@ -65,6 +66,7 @@ The implementation spans the following files:
       - It checks if the currently focused container is a placeholder on the target workspace.
       - Otherwise, it searches the target workspace recursively for the first available placeholder.
       - If a placeholder is found, it reuses that container (`nc`), resets `is_placeholder = false`, maps it (`mapped = true`), and places the new client window inside it.
+    - Records the mapping timestamp using `gettimeofday(&cwindow->managed_since_tv, NULL)`.
 
 ### 5. Layout Serialization & Deserialization (In-Place Restart Preservation)
 * **Files**: `src/ipc.c` and `src/load_layout.c`
@@ -97,8 +99,8 @@ The implementation spans the following files:
 
 ### 11. Short-Lived Window Filtering
 * **File**: `src/tree.c`
-  - Modified `tree_close_internal` to check the age of the window being closed using `time(NULL) - con->window->managed_since`.
-  - If the window was managed for 1 second or less, it is treated as a programmatic temporary window (such as those created and immediately destroyed by Konsole during multiple split pane actions) rather than a user-initiated window close. This prevents it from being converted into a placeholder.
+  - Modified `tree_close_internal` to check the age of the window being closed using `gettimeofday` compared to `con->window->managed_since_tv`.
+  - Calculates the elapsed time in milliseconds. If the window was managed for 200 milliseconds or less, it is treated as a programmatic temporary window (such as those created and immediately destroyed by Konsole during multiple split pane actions) rather than a user-initiated window close. This prevents it from being converted into a placeholder, while ensuring manual quick closes (which always take >500ms) consistently leave placeholders.
 
 ---
 
