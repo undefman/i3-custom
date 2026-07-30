@@ -309,3 +309,162 @@ void resize_graphical_handler(Con *first, Con *second, orientation_t orientation
     DLOG("Graphical resize %s: first->percent = %f, second->percent = %f.\n",
          result ? "successful" : "failed", first->percent, second->percent);
 }
+
+struct callback_params_2d {
+    Con *output;
+    xcb_window_t helpwin_h;
+    xcb_window_t helpwin_v;
+    uint32_t *new_x;
+    uint32_t *new_y;
+};
+
+DRAGGING_CB(resize_callback_2d) {
+    const struct callback_params_2d *params = extra;
+    Con *output = params->output;
+    DLOG("new x = %d, y = %d\n", new_x, new_y);
+
+    /* Check if the new coordinates are within screen boundaries */
+    if (new_x <= (output->rect.x + output->rect.width - 25) &&
+        new_x >= (output->rect.x + 25)) {
+        *(params->new_x) = new_x;
+        xcb_configure_window(conn, params->helpwin_h, XCB_CONFIG_WINDOW_X, params->new_x);
+    }
+
+    if (new_y <= (output->rect.y + output->rect.height - 25) &&
+        new_y >= (output->rect.y + 25)) {
+        *(params->new_y) = new_y;
+        xcb_configure_window(conn, params->helpwin_v, XCB_CONFIG_WINDOW_Y, params->new_y);
+    }
+
+    xcb_flush(conn);
+}
+
+void resize_graphical_handler_2d(Con *first_h, Con *second_h, Con *first_v, Con *second_v,
+                                 const xcb_button_press_event_t *event) {
+    Con *output = con_get_output(first_h);
+    DLOG("first_h = %p / %s\n", first_h, first_h->name);
+    DLOG("second_h = %p / %s\n", second_h, second_h->name);
+    DLOG("first_v = %p / %s\n", first_v, first_v->name);
+    DLOG("second_v = %p / %s\n", second_v, second_v->name);
+
+    x_mask_event_mask(~XCB_EVENT_MASK_ENTER_WINDOW);
+    xcb_flush(conn);
+
+    uint32_t mask = XCB_CW_OVERRIDE_REDIRECT;
+    uint32_t values[2] = {1};
+
+    /* Open a new window, the resizebar. Grab the pointer and move the window
+     * around as the user moves the pointer. */
+    xcb_window_t grabwin = create_window(conn, output->rect, XCB_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
+                                         XCB_WINDOW_CLASS_INPUT_ONLY, XCURSOR_CURSOR_BOTTOM_RIGHT_CORNER, true, mask, values);
+
+    uint32_t initial_x, new_x;
+    uint32_t initial_y, new_y;
+
+    Rect helprect_h;
+    helprect_h.x = second_h->rect.x;
+    helprect_h.y = second_h->rect.y;
+    helprect_h.height = second_h->rect.height;
+    helprect_h.width = logical_px(2);
+
+    Con *ffirst_h = con_descend_focused(first_h);
+    Con *fsecond_h = con_descend_focused(second_h);
+    const uint32_t ffirst_right = ffirst_h->rect.x + ffirst_h->rect.width;
+    const uint32_t gap_h = (fsecond_h->rect.x - ffirst_right);
+    const uint32_t middle_x = fsecond_h->rect.x - (gap_h / 2);
+    initial_x = middle_x;
+
+    Rect helprect_v;
+    helprect_v.x = second_v->rect.x;
+    helprect_v.y = second_v->rect.y;
+    helprect_v.width = second_v->rect.width;
+    helprect_v.height = logical_px(2);
+
+    Con *ffirst_v = con_descend_focused(first_v);
+    Con *fsecond_v = con_descend_focused(second_v);
+    const uint32_t ffirst_bottom = ffirst_v->rect.y + ffirst_v->rect.height;
+    const uint32_t gap_v = (fsecond_v->rect.y - ffirst_bottom);
+    const uint32_t middle_y = fsecond_v->rect.y - (gap_v / 2);
+    initial_y = middle_y;
+
+    mask = XCB_CW_BACK_PIXEL | XCB_CW_OVERRIDE_REDIRECT;
+    values[0] = config.client.focused.border.colorpixel;
+    values[1] = 1;
+
+    xcb_window_t helpwin_h = create_window(conn, helprect_h, XCB_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
+                                           XCB_WINDOW_CLASS_INPUT_OUTPUT, XCURSOR_CURSOR_RESIZE_HORIZONTAL, false, mask, values);
+
+    xcb_window_t helpwin_v = create_window(conn, helprect_v, XCB_COPY_FROM_PARENT, XCB_COPY_FROM_PARENT,
+                                           XCB_WINDOW_CLASS_INPUT_OUTPUT, XCURSOR_CURSOR_RESIZE_VERTICAL, false, mask, values);
+
+    xcb_map_window(conn, helpwin_h);
+    xcb_map_window(conn, helpwin_v);
+
+    xcb_warp_pointer(conn, XCB_NONE, event->root, 0, 0, 0, 0,
+                     initial_x, initial_y);
+
+    xcb_circulate_window(conn, XCB_CIRCULATE_RAISE_LOWEST, helpwin_h);
+    xcb_circulate_window(conn, XCB_CIRCULATE_RAISE_LOWEST, helpwin_v);
+    xcb_flush(conn);
+
+    new_x = initial_x;
+    new_y = initial_y;
+
+    const struct callback_params_2d params = {output, helpwin_h, helpwin_v, &new_x, &new_y};
+
+    tree_render();
+
+    drag_result_t drag_result = drag_pointer(NULL, event, grabwin, 0, false, resize_callback_2d, &params);
+
+    xcb_destroy_window(conn, helpwin_h);
+    xcb_destroy_window(conn, helpwin_v);
+    xcb_destroy_window(conn, grabwin);
+    xcb_flush(conn);
+
+    if (drag_result == DRAG_REVERT) {
+        return;
+    }
+
+    int pixels_x = (new_x - initial_x);
+    int pixels_y = (new_y - initial_y);
+
+    if (pixels_x != 0) {
+        int first_size_h = first_h->rect.width;
+        int second_size_h = second_h->rect.width;
+        bool deleted_h = false;
+        if (pixels_x > 0 && second_h->is_placeholder) {
+            if (second_size_h - pixels_x < 40) {
+                tree_close_internal(second_h, DONT_KILL_WINDOW, false);
+                deleted_h = true;
+            }
+        } else if (pixels_x < 0 && first_h->is_placeholder) {
+            if (first_size_h + pixels_x < 40) {
+                tree_close_internal(first_h, DONT_KILL_WINDOW, false);
+                deleted_h = true;
+            }
+        }
+        if (!deleted_h) {
+            resize_neighboring_cons(first_h, second_h, pixels_x, 0);
+        }
+    }
+
+    if (pixels_y != 0) {
+        int first_size_v = first_v->rect.height;
+        int second_size_v = second_v->rect.height;
+        bool deleted_v = false;
+        if (pixels_y > 0 && second_v->is_placeholder) {
+            if (second_size_v - pixels_y < 40) {
+                tree_close_internal(second_v, DONT_KILL_WINDOW, false);
+                deleted_v = true;
+            }
+        } else if (pixels_y < 0 && first_v->is_placeholder) {
+            if (first_size_v + pixels_y < 40) {
+                tree_close_internal(first_v, DONT_KILL_WINDOW, false);
+                deleted_v = true;
+            }
+        }
+        if (!deleted_v) {
+            resize_neighboring_cons(first_v, second_v, pixels_y, 0);
+        }
+    }
+}

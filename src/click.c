@@ -90,8 +90,39 @@ static bool floating_mod_on_tiled_client(Con *con, xcb_button_press_event_t *eve
         to_top = event->event_y,
         to_bottom = con->rect.height - event->event_y;
 
-    DLOG("click was %d px to the right, %d px to the left, %d px to top, %d px to bottom\n",
-         to_right, to_left, to_top, to_bottom);
+    int corner_threshold_x = min(300, con->rect.width * 2 / 5);
+    int corner_threshold_y = min(300, con->rect.height * 2 / 5);
+    bool near_x = (to_left < corner_threshold_x || to_right < corner_threshold_x);
+    bool near_y = (to_top < corner_threshold_y || to_bottom < corner_threshold_y);
+
+    if (near_x && near_y) {
+        border_t border_h = (to_left < to_right) ? BORDER_LEFT : BORDER_RIGHT;
+        border_t border_v = (to_top < to_bottom) ? BORDER_TOP : BORDER_BOTTOM;
+
+        Con *first_h = con, *second_h = NULL;
+        direction_t dir_h = (border_h == BORDER_LEFT) ? D_LEFT : D_RIGHT;
+        bool res_h = resize_find_tiling_participants(&first_h, &second_h, dir_h, false);
+
+        Con *first_v = con, *second_v = NULL;
+        direction_t dir_v = (border_v == BORDER_TOP) ? D_UP : D_DOWN;
+        bool res_v = resize_find_tiling_participants(&first_v, &second_v, dir_v, false);
+
+        if (res_h && res_v && first_h->fullscreen_mode == second_h->fullscreen_mode && first_v->fullscreen_mode == second_v->fullscreen_mode) {
+            if (dir_h == D_UP || dir_h == D_LEFT) {
+                Con *tmp = first_h;
+                first_h = second_h;
+                second_h = tmp;
+            }
+            if (dir_v == D_UP || dir_v == D_LEFT) {
+                Con *tmp = first_v;
+                first_v = second_v;
+                second_v = tmp;
+            }
+            resize_graphical_handler_2d(first_h, second_h, first_v, second_v, event);
+            tree_render();
+            return true;
+        }
+    }
 
     if (to_right < to_left &&
         to_right < to_top &&

@@ -110,7 +110,7 @@ The implementation spans the following files:
   - If a placeholder is being shrunk, and the dragging movement reduces the placeholder's size below 40 pixels (or pushes past it entirely), it automatically destroys the placeholder using `tree_close_internal` and triggers `tree_render()`. This allows the expanding window to immediately reclaim and fill 100% of the space.
 
 ### 13. Click-to-Focus Placeholders
-* **Files**: `src/bindings.c`, `src/tree.c`, `src/manage.c`, `src/x.c`, `src/handlers.c`, `libi3/draw_util.c`
+* **Files**: `src/bindings.c`, `src/tree.c`, `src/manage.c`, `src/x.c`, `src/handlers.c`, `libi3/draw_util.c`, `include/resize.h`, `src/resize.c`, `src/click.c`
   - Modified `regrab_all_buttons` in `src/bindings.c` to grab mouse buttons on the frame window `con->frame.id` if the container is a placeholder (`con->is_placeholder == true`). If a container is not a placeholder, it explicitly ungrabs buttons on the frame to prevent dangling grabs.
   - Added calls to `regrab_all_buttons` when a container is converted to a placeholder in `src/tree.c` or when a placeholder container is reused for a new client window in `src/manage.c`.
   - Reset the container's border style and border width to `config.default_border` and `config.default_border_width` in `src/manage.c` when reusing a placeholder, restoring normal window decorations and titlebars.
@@ -125,6 +125,7 @@ The implementation spans the following files:
   - Modified `surface_initialized` in `libi3/draw_util.c` to return `false` if `surface->surface` is `NULL`. This makes drawing operations safe against freed buffers (such as when `con->frame_buffer` is freed) and prevents Cairo segmentation fault crashes, while keeping `surface->id` intact for container state lookups.
   - Modified titlebar generation in `src/x.c` to use `con->name` (which is `"[Empty]"`) instead of falling back to `"i3: nowin"` for placeholders.
   - When a user clicks on the empty space, X11 sends a `ButtonPress` event on the frame window, which is mapped back to the placeholder container and handled by `route_click` in `src/click.c` to focus it via `con_activate`.
+  - Implemented 2D tiling resize using the mouse in `src/click.c` and `src/resize.c`. When the user holds the floating modifier (Mod key) and right-clicks drag close to a corner of a tiling window, i3 detects the corner click and initiates a 2D resize drag, showing crossed vertical and horizontal indicator lines and resizing both the width and height of neighboring containers simultaneously.
 
 ---
 

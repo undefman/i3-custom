@@ -17,6 +17,9 @@ void resize_graphical_handler(Con *first, Con *second, orientation_t orientation
                               const xcb_button_press_event_t *event,
                               bool use_threshold);
 
+void resize_graphical_handler_2d(Con *first_h, Con *second_h, Con *first_v, Con *second_v,
+                                 const xcb_button_press_event_t *event);
+
 /**
  * Resize the two given containers using the given amount of pixels or
  * percentage points. One of the two needs to be 0. A positive amount means
